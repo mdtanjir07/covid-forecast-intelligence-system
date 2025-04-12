@@ -1,0 +1,77 @@
+# COVID-19 Forecast Intelligence System Project 
+
+# 1. Import Libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.express as px
+import warnings
+warnings.filterwarnings("ignore")
+
+# 2. Load Dataset
+df = pd.read_csv("covid_forecasts_data.csv")
+df["forecast_date"] = pd.to_datetime(df["forecast_date"])
+df["target_end_date"] = pd.to_datetime(df["target_end_date"])
+df.dropna(inplace=True)
+
+# 3. Data Cleaning + Grouping
+df = df[(df["quantile_0.5"] >= 0)]
+df = df[df["location_name"] != "US"]
+df["month"] = df["forecast_date"].dt.month
+
+grouped_model = df.groupby("model")["quantile_0.5"].mean().reset_index()
+grouped_location = df.groupby("location_name")["quantile_0.5"].mean().sort_values(ascending=False).reset_index()
+
+# 4. Visualizations using Seaborn & Matplotlib
+
+# High-Risk Regions
+plt.figure(figsize=(12,6))
+sns.barplot(data=grouped_location.head(10), x="location_name", y="quantile_0.5", palette="Reds")
+plt.title("Top 10 High-Risk Regions for COVID-19")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# Forecast Horizon Impact
+plt.figure(figsize=(10,5))
+sns.lineplot(data=df.groupby("horizon")["quantile_0.5"].mean().reset_index(), x="horizon", y="quantile_0.5", marker="o")
+plt.title("Forecast Horizon vs. Average Forecasted Cases")
+plt.xlabel("Forecast Horizon (weeks)")
+plt.ylabel("Cases")
+plt.grid(True)
+plt.show()
+
+# Seasonality Trend
+seasonal_avg = df.groupby("month")["quantile_0.5"].mean()
+plt.figure(figsize=(10,5))
+sns.lineplot(x=seasonal_avg.index, y=seasonal_avg.values, marker='o', color='green')
+plt.title("Monthly Seasonality of COVID Forecast")
+plt.xticks(range(1,13), ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
+plt.ylabel("Avg Forecasted Cases")
+plt.grid(True)
+plt.show()
+
+# 5. Statistical Analysis - Anomaly Detection
+df["z_score"] = (df["quantile_0.5"] - df["quantile_0.5"].mean()) / df["quantile_0.5"].std()
+anomalies = df[np.abs(df["z_score"]) > 3]
+
+plt.figure(figsize=(12,5))
+sns.scatterplot(data=df, x="forecast_date", y="quantile_0.5", alpha=0.4, label="Normal")
+sns.scatterplot(data=anomalies, x="forecast_date", y="quantile_0.5", color="red", label="Anomaly", s=100)
+plt.title("Anomalies in Forecasted Cases (Z-score > 3)")
+plt.legend()
+plt.show()
+
+# 6. Model Comparison (CRISP-DM Concept)
+plt.figure(figsize=(12,5))
+sns.barplot(data=grouped_model.sort_values(by="quantile_0.5", ascending=False), x="model", y="quantile_0.5", palette="coolwarm")
+plt.title("Model Comparison Based on Avg Forecasted Cases")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# 7. Interactive Dashboard using Plotly
+fig = px.scatter(df, x="forecast_date", y="quantile_0.5", color="model", title="Interactive Forecast Trends by Model", hover_data=["location_name", "horizon"])
+fig.update_layout(height=500)
+fig.show()
